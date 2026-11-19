@@ -38,22 +38,44 @@ Teams sign in with Google, press **Activate**, and receive their own Cloud Run s
 
 ## Architecture
 
-```
-Browser ──► Cloud Run: portal web (Flask + React/Ant Design)
-                 │  enqueue
-                 ▼
-          Cloud Tasks queue ──► Cloud Run: private provisioner worker (same image)
-                                      │  six idempotent stages
-                                      ▼
-   per team:  Artifact Registry · Cloud SQL (PostgreSQL) · service accounts + IAM
-              Secret Manager slots · Cloud Run service + migrate job · GitHub link
-
-Portal state: Cloud SQL (PostgreSQL)   ·   Cost data: BigQuery billing export
+```mermaid
+flowchart LR
+    S["Student / TA<br/>(browser)"] --> W["Cloud Run<br/>portal web<br/>(Flask + React)"]
+    W -- "enqueue" --> Q[["Cloud Tasks<br/>queue"]]
+    Q --> P["Cloud Run<br/>private provisioner<br/>(same image)"]
+    W <--> DB[("Portal DB<br/>Cloud SQL PostgreSQL")]
+    P <--> DB
+    P --> T
+    subgraph T["Created for each team"]
+        direction TB
+        R["Artifact Registry"]
+        SQL[("Cloud SQL<br/>PostgreSQL")]
+        IAM["Service accounts<br/>+ scoped IAM"]
+        SEC["Secret Manager<br/>slots"]
+        RUN["Cloud Run service<br/>+ migrate job"]
+    end
+    BQ[("BigQuery<br/>billing export")] -.-> W
 ```
 
 - **Web service** serves the interface and API. **Worker** runs the provisioning stages, is not publicly invokable, and only the Cloud Tasks service account may call it.
 - Provisioning is resumable: each stage is idempotent, uses lease and token fencing, and records progress and a worker heartbeat.
 - Backend: Flask, Authlib, PostgreSQL (SQLite for local preview only). Frontend: React 19 and Ant Design 6, built with Vite into `static/ui`.
+
+### Activation stages
+
+Activation runs as six idempotent stages. Each stage can be retried safely, and the portal shows the current stage and elapsed time.
+
+```mermaid
+flowchart LR
+    A["1. Registry"] --> B["2. Database"] --> C["3. Identity<br/>and IAM"] --> D["4. Secrets<br/>and slots"] --> E["5. Deployments"] --> F["6. GitHub link<br/>(optional)"]
+```
+
+### Student workflow
+
+```mermaid
+flowchart LR
+    L["Sign in<br/>with Google"] --> AC["Activate<br/>team resources"] --> K["Download<br/>Project Kit"] --> BU["kit.sh build"] --> DE["kit.sh deploy"] --> LIVE(["Team service<br/>is live"])
+```
 
 ## Repository structure
 
