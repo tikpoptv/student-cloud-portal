@@ -1,0 +1,3 @@
+<!doctype html>
+<html lang="{{ language }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#2455a4"><title>CPE334 · Student Cloud</title><link rel="stylesheet" href="/static/ui/main.css"><script type="module" src="/static/ui/app.js"></script></head>
+<body><div id="root" data-bootstrap='{{ {"admin_email": admin_email or none, "team": {"name": team.name, "email": team.login_email, "prefix": team.prefix} if team else none, "csrf": csrf, "steps": steps, "preview": preview, "demo_login": demo_login, "oauth_ready": oauth_ready}|tojson|forceescape }}'></div><noscript>{{ tr('กรุณาเปิด JavaScript เพื่อใช้งาน Student Cloud Portal') }}</noscript></body></html>

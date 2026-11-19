@@ -1,0 +1,25 @@
+# Node.js (multi-stage) - change it to match your project (listen on the port from process.env.PORT and bind 0.0.0.0)
+# Stage 1 installs ALL dependencies and builds; stage 2 keeps only production dependencies and the built output.
+FROM node:20-slim AS build
+WORKDIR /app
+COPY package*.json ./
+# npm ci needs package-lock.json; yarn / pnpm / no lock file projects fall back to npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY . .
+# Prisma: add   RUN npx prisma generate   here (before the build)
+# Build step (TypeScript, Next, Vite ...): runs only if package.json has a "build" script
+RUN npm run build --if-present
+# NOTE: this removes devDependencies, including the "prisma" CLI. Prisma users: keep "prisma" in dependencies, or delete this line.
+RUN npm prune --omit=dev
+
+FROM node:20-slim
+WORKDIR /app
+ENV NODE_ENV=production PORT=8080
+# /app must belong to the non-root user, or the app cannot write files (uploads, SQLite) there
+RUN chown node:node /app
+COPY --from=build --chown=node:node /app /app
+EXPOSE 8080
+USER node
+# MIGRATE_COMMAND runs inside this image with the production dependencies only. If you use
+# "npx prisma migrate deploy", put "prisma" in dependencies (not devDependencies) of package.json, or remove the prune line.
+CMD ["npm", "start"]

@@ -1,0 +1,23 @@
+> Feature note (19 November 2026). Test claims here are as of that release.
+
+# Activation wait feedback
+
+The status screen uses completed steps (for example, 1/6) rather than a prominent percentage that could be mistaken for time remaining. The progress bar remains a stage count and explicitly says steps take different amounts of time. There is no guessed ETA or artificial advancement.
+
+Students see total elapsed time, time in the current stage, the last actual worker checkpoint, and the last successful page status fetch. Stage entry is derived from the previous successful stage event, not from heartbeat updates, so SQL wait time does not reset on every retry. Final timers stop at completion/failure. All displayed clocks explicitly use Thailand time; durations use the selected EN/TH locale and server time to avoid relying on the browser's wall clock.
+
+The worker alone writes a dedicated `worker_seen_at` heartbeat when it claims work and at every fenced provider-call checkpoint; `/api/status` returns it as `progress.worker_last_seen_at` and returns null until a worker has claimed the job. Re-queueing (retry after failure, a stale-queue retry, attaching GitHub) clears the heartbeat and, for a retry, resets `updated_at` to the queue time, so a retried job shows `queued` rather than a stale warning, and an attach never pretends a worker checked in. The API exports only worker/stage timing metadata, not internal operation identifiers or credentials. Waiting in the queue does not claim a worker heartbeat. SQL copy explains that creation can take several minutes, sometimes over 10, and that an unchanged step does not itself establish failure. The latest wait reason is available in a disclosure.
+
+A lost page connection or worker checkpoint older than three minutes changes the screen to unconfirmed progress with recovery instructions; it does not keep claiming confirmed activity. The page-level status badge agrees with this warning. The refresh action only reads status; it does not recreate resources. The screen says the user can close the page and return without activating again. Failed jobs retain their existing retry action; success appears only from persisted ready state.
+
+The one-second visual timer is outside the polite status-announcement area, preventing repeated screen-reader announcements. The interface retains Ant Design, responsive layout, existing group authorization and EN/TH translations. No browser/UI test is performed, following the user's instruction. Backend tests cover checkpoint timing and stage age; frontend tests cover stale worker versus fresh page, lost connection, queue state, timer completion and phase-count semantics.
+
+
+## Shared judgement, polling and accessibility (update)
+
+- One function, `activationStatus()` in `ui/src/activation-status.js`, decides stale/queued/failed/ready for both the home badge and the progress screen. Rules: heartbeat older than 180s is stale; a running job with no heartbeat falls back to its last update (180s); a queued job with no worker claim is stale after 600s (`queueStuck`), which also enables the retry button. A lost status fetch marks unfinished work as unconfirmed but never finished work.
+- The "Activate / resend" button is hidden while `queued` unless the queue is stuck, and shown for `failed`. Stale-but-running work is not re-sent. The "no need to activate again" line is hidden when retry is offered.
+- `fetchFailed` (status read failed) and `actionError` (activate/reset rejected, e.g. 409/503) are separate; only the first shows "connection lost" and affects staleness.
+- Polling (`ui/src/activation-poll.js`): each request has an AbortController and an increasing id; stale responses are ignored; a tick is skipped while a request is in flight; user actions and the tab becoming visible force an immediate refresh that aborts the older request; hidden tabs do not poll. When the job is ready (no GitHub link in flight) or failed, polling slows from 2s to 30s.
+- Accessibility: the percentage progress bar was replaced by a six-segment, `aria-hidden` step bar; the "n/6 steps completed" tag carries the meaning, so screen readers never read a percentage. The one-second timer runs only while a job (or GitHub link) is unfinished; the `role=status` heading contains no per-second content.
+- GitHub link sub-state: when GitHub is attached to ready resources, `status` stays `ready`; `github_link_status` is `queued`, `running` or `failed` (null when none/connected) with its own `github_link_error`, `github_link_at`. The screen shows a link-specific notice and a "Retry GitHub link" action; resource outputs, handoff and total elapsed time are unaffected.

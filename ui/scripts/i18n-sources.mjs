@@ -1,0 +1,4 @@
+import fs from 'node:fs';
+import {parse} from '@babel/parser';
+export function nodes(source){const root=parse(source,{sourceType:'module',plugins:['jsx']});const found=[];const visit=x=>{if(!x||typeof x!=='object')return;if((x.type==='StringLiteral'||x.type==='JSXText')&&/[ก-๙]/.test(x.value))found.push(x);for(const [k,v]of Object.entries(x)){if(k==='tokens'||k==='comments')continue;if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v==='object')visit(v);}};visit(root);return found;}
+if(process.argv[1].endsWith('i18n-sources.mjs')){const values=new Set();for(const p of ['ui/src/main.jsx','ui/src/RepoReview.jsx','ui/src/GroupResources.jsx','ui/src/resource-context.js','ui/src/PortalHeader.jsx','ui/src/ErrorPage.jsx'])for(const n of nodes(fs.readFileSync(p,'utf8')))values.add(n.value.trim());fs.writeFileSync('/tmp/portal-ui-th.json',JSON.stringify([...values],null,2));console.log([...values].map((x,i)=>i+': '+x).join('\n'));}

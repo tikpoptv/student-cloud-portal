@@ -1,0 +1,33 @@
+# Copy to .dockerignore next to your Dockerfile - it makes the image smaller and keeps secret files out of the image
+# NOTE: for a static website (Dockerfile.static copies dist/) delete the "dist" and "build" lines below
+#       (kit.sh --stack static init does this for you).
+.git
+**/.git
+.gitignore
+node_modules
+**/node_modules
+__pycache__
+*.pyc
+.venv
+venv
+target
+dist
+build
+.env
+# .env.* is excluded on purpose (it may hold secrets). If you need a PUBLIC build-time file such as
+# .env.production (for example NEXT_PUBLIC_* values), add the line  !.env.production  after the .env.* lines.
+.env.*
+**/.env
+**/.env.*
+*.env
+resources.env
+app.env
+secrets.map
+.kit-state
+*.pem
+**/*.pem
+*.key
+*.json.key
+Dockerfile
+docker-compose*.yml
+README.md

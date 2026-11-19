@@ -1,0 +1,11 @@
+# Static website (built HTML/JS in the dist/ folder) served by nginx
+# Build your site first (for example: npm run build) so that dist/ exists next to this Dockerfile.
+# dist/ and build/ must NOT be listed in .dockerignore: "kit.sh --stack static init" creates a .dockerignore
+# without them. If you copied the default .dockerignore yourself, delete its "dist" and "build" lines.
+# This image replaces ${PORT} in the template file automatically
+FROM nginx:1.27-alpine
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY dist/ /usr/share/nginx/html/
+ENV PORT=8080
+EXPOSE 8080
+# Create a file nginx.conf.template that contains:  server { listen ${PORT}; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }
