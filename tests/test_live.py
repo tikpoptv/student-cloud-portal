@@ -146,3 +146,56 @@ def test_enqueue_duplicate_does_not_require_task_reader_permissions():
   def request(self,method,url,body=None,**kw):
    assert method=='POST';raise AlreadyExists('duplicate')
  enqueue({'WORKER_URL':'https://worker.test','TASK_IDENTITY':'tasks@example.test'},'one',1,api=API())
+
+
+class _Resp:
+ def __init__(self,status,body=None,raw=False):
+  self.status_code=status;self._body=body;self.content=b'x' if body is not None else b''
+  self._raw=raw
+ def json(self):
+  if self._raw:raise ValueError('not json')
+  return self._body
+
+
+def _api_returning(resp):
+ from live_provision import GoogleAPI
+ class S:
+  def request(self,*a,**k):return resp
+ return GoogleAPI(S())
+
+
+def test_cloud_error_keeps_a_short_google_message_but_never_the_request_body():
+ from live_provision import CloudError
+ body={'error':{'code':400,'message':'User kid@gmail.com does not exist.\n'+'x'*500,'details':[{'secret':'token-123'}]}}
+ with pytest.raises(CloudError) as raised:_api_returning(_Resp(400,body)).request('POST','https://iam.googleapis.com/v1/x:setIamPolicy',{'policy':{'bindings':[{'members':['user:private@gmail.com']}]}})
+ text=str(raised.value)
+ assert 'HTTP 400' in text and 'does not exist' in text and 'token-123' not in text and 'private@gmail.com' not in text
+ assert len(raised.value.detail)<=200 and not raised.value.propagating
+ with pytest.raises(CloudError) as raised:_api_returning(_Resp(400,raw=True)).request('GET','https://iam.googleapis.com/v1/x')
+ assert raised.value.detail=='' and str(raised.value).endswith('https://iam.googleapis.com/v1/x')
+
+
+@pytest.mark.parametrize('status,message,expected',[
+ (400,'Service account s47a6b53b-deployer@cpe-se-course-2026.iam.gserviceaccount.com does not exist.',True),
+ (400,'serviceAccount:foo not found',True),
+ (400,'User kid@gmail.com does not exist.',False),
+ (403,'Service account x does not exist',False),
+])
+def test_only_a_400_about_a_missing_service_account_counts_as_propagation(status,message,expected):
+ from live_provision import CloudError
+ assert CloudError(status,'POST u',message).propagating is expected
+
+
+def test_service_account_propagation_is_retried_but_other_400s_fail(app):
+ from live_provision import CloudError
+ c,csrf=client(app)
+ with patch('activation.github_identity',return_value=IDENTITY),patch('activation.enqueue'):
+  c.post('/api/activate',json={'repo':'owner/repo'},headers={'X-CSRF-Token':csrf})
+ race=CloudError(400,'POST https://iam.googleapis.com/v1/x:setIamPolicy','Service account a-deployer@p.iam.gserviceaccount.com does not exist.')
+ with patch('activation.Provisioner.step',side_effect=race):
+  assert process_live(app,'one')[1]==503
+ assert c.get('/api/status').json['activation']['status']!='failed'
+ bad=CloudError(400,'POST https://iam.googleapis.com/v1/x:setIamPolicy','User kid@gmail.com does not exist.')
+ with patch('activation.Provisioner.step',side_effect=bad):
+  assert process_live(app,'one')[1]==200
+ assert c.get('/api/status').json['activation']['status']=='failed'

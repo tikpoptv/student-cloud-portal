@@ -91,3 +91,33 @@ def test_postgres_resources_without_github_and_later_attach(postgres_app):
         assert c.post('/api/activate',json={'repo':'owner/repo'},headers=headers).status_code==202
     with a.db() as db:
         row=db.execute("SELECT * FROM activations WHERE team_id='real'").fetchone();assert row['step']==6 and row['status']=='ready' and row['github_link_status']=='queued' and row['repo']=='owner/repo'
+
+
+def test_postgres_chat_and_push_flow(postgres_app):
+    """RETURNING, ON CONFLICT and the correlated unread queries must behave on PostgreSQL, not only SQLite."""
+    from unittest.mock import patch
+    from app import create_app
+    from tests.test_oauth_setup import callback
+    a,config=postgres_app
+    a=create_app({**config,'AUTH_MODE':'google','TA_EMAILS':'ta@gmail.com','VAPID_PRIVATE_KEY':'p'*43,'VAPID_PUBLIC_KEY':'K'*87,'VAPID_SUBJECT':'mailto:ta@example.org'})
+    with a.db() as db:db.execute("INSERT INTO teams VALUES('real','Real team','real@gmail.com','real123',1,NULL,0)")
+    s=a.test_client();assert callback(s,a,'real@gmail.com').status_code==302
+    ta=a.test_client();assert callback(ta,a,'ta@gmail.com').status_code==302
+    def h(c):
+        with c.session_transaction() as sess:return {'X-CSRF-Token':sess['csrf']}
+    sub={'subscription':{'endpoint':'https://web.push.apple.com/ta1','keys':{'p256dh':'B'*87,'auth':'a'*22}}}
+    assert ta.post('/api/push/subscribe',json=sub,headers=h(ta)).status_code==201
+    assert ta.post('/api/push/subscribe',json=sub,headers=h(ta)).status_code==201  # upsert, not a duplicate-key error
+    with patch('chat.webpush') as push:
+        assert s.post('/api/chat',json={'body':'สวัสดี'},headers=h(s)).status_code==201
+        assert s.post('/api/chat',json={'body':'สอง'},headers=h(s)).status_code in (201,429)
+    assert push.call_count>=1
+    assert ta.get('/api/admin/chat/summary').json['unread_total']>=1
+    assert [m['body'] for m in ta.get('/api/admin/chat/real').json['messages']][0]=='สวัสดี'
+    assert ta.get('/api/admin/chat/summary').json['unread_total']==0
+    with patch('chat.webpush'):
+        assert ta.post('/api/admin/chat/real',json={'body':'รับทราบ'},headers=h(ta)).status_code==201
+    assert s.get('/api/chat/unread').json['unread']==1
+    assert s.get('/api/chat').json['messages'][-1]['sender']=='TA'
+    assert s.get('/api/chat/unread').json['unread']==0
+    with a.db() as db:assert db.execute('SELECT COUNT(*) n FROM push_subscriptions').fetchone()['n']==1

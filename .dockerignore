@@ -17,5 +17,6 @@
 !live_provision.py
 !admin_dashboard.py
 !membership.py
+!chat.py
 project-kit/tests
 project-kit/**/__pycache__

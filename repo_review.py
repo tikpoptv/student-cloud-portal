@@ -32,9 +32,20 @@ def _log():
     return current_app.logger if has_app_context() else logging.getLogger(__name__)
 
 
+GITHUB_URL_RE=re.compile(r'(?:(?:https?://)?(?:www\.)?github\.com[/:]|git@github\.com:)(.*)',re.IGNORECASE|re.DOTALL)
+
+
 def normalize_repo(value):
+    """Accept owner/repo or a pasted GitHub link (github.com/o/r, https://www.github.com/o/r/tree/main, git@github.com:o/r.git).
+    Only github.com is accepted; any other host, or odd characters, is rejected."""
     if not isinstance(value,str):raise ValueError('กรุณาใส่ลิงก์ GitHub repo')
-    repo=value.strip().removeprefix('https://github.com/').removesuffix('/').removesuffix('.git')
+    repo=value.strip()
+    link=GITHUB_URL_RE.fullmatch(repo)
+    if link:
+        # a pasted link may carry a query, fragment or extra path (/tree/main, /issues); keep owner/repo only
+        parts=re.split(r'[?#]',link.group(1),maxsplit=1)[0].split('/')
+        repo='/'.join(parts[:2])
+    repo=repo.removesuffix('/').removesuffix('.git')
     if not REPO_RE.fullmatch(repo) or any(part in ('.','..') for part in repo.split('/')):
         raise ValueError('ใช้ public GitHub repository รูปแบบ owner/repository เท่านั้น')
     return repo

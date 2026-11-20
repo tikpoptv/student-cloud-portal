@@ -28,11 +28,13 @@ Teams sign in with Google, press **Activate**, and receive their own Cloud Run s
 - **Final Project Kit:** a stack-agnostic command-line kit (`kit.sh`) for building and deploying any containerised project to the team's Cloud Run service, with guides in English and Thai.
 - **Lab 5:** repository review and per-file diff against the Lab 5 layout, with a downloadable patch or a tailored starter kit. The portal reads only a fixed list of public GitHub paths pinned to a verified commit SHA; it never clones or executes student code.
 - Resources can be activated without a GitHub repository.
+- **Chat with the TAs:** one shared thread per team, with optional Web Push notifications (works on Android, desktop and iPhone once the site is added to the Home Screen).
 - Interface in Thai and English.
 
 **For teaching assistants**
 
 - Dashboard of all teams: activation state, Cloud Run, Cloud SQL and registry inventory, request counts and estimated cost from Cloud Billing export.
+- **Message inbox** (first tab, phone friendly): conversations with unread teams on top, a preview of the latest message, and search to start a new conversation.
 - Add or remove groups and members, with the corresponding IAM grants and revocations.
 - Operator scripts (all dry-run by default) to pause, resume, or tear down a team.
 
@@ -83,6 +85,7 @@ flowchart LR
 app.py, activation.py, live_provision.py   web routes, activation flow, provisioning stages
 membership.py, admin_dashboard.py          member management, TA dashboard
 repo_review.py, database.py, localization.py
+chat.py              team/TA chat and Web Push (optional, needs VAPID keys)
 ui/                  React source and frontend tests (build output is committed in static/ui)
 project-kit/         Final Project Kit (kit.sh, templates, docs, tests)
 reference-kit/       Lab 5 reference deployment files
@@ -128,6 +131,7 @@ Provisioning creates billable resources, chiefly one Cloud SQL instance per team
 ## Security model
 
 - Credentials, roster data and local state belong in an untracked `private/` directory and are never committed. This repository contains no secrets.
+- Chat notifications carry no message text, and subscriptions are accepted only for the browsers' own push services (Apple, Google, Mozilla, Microsoft).
 - No service account keys or cloud credentials are placed in browser code or downloads.
 - Members receive least-privilege roles scoped to their own service, job, registry and secrets, plus an instance-conditioned Cloud SQL client role.
 - CSRF protection, session pinning, request throttling and a per-team activation limit are enforced server side.
@@ -137,7 +141,7 @@ Provisioning creates billable resources, chiefly one Cloud SQL instance per team
 
 | Document | Content |
 |---|---|
-| [RUNBOOK.md](RUNBOOK.md) | Deploy, rollback, restore, team operations, cost control |
+| [RUNBOOK.md](RUNBOOK.md) | Deploy, rollback, restore, team operations, cost control, chat and push setup |
 | [LIVE-ACTIVATION.md](LIVE-ACTIVATION.md) | Provisioning stages and live activation |
 | [ADMIN-DASHBOARD.md](ADMIN-DASHBOARD.md) | TA dashboard and billing export |
 | [TEAM-MEMBERS.md](TEAM-MEMBERS.md) | Group and member management |

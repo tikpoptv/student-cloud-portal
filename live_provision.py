@@ -27,9 +27,19 @@ class RevokeIncomplete(ProvisionError):
     def __init__(self,failed,transient):
         self.failed=list(failed);self.transient=transient
         super().__init__('Revocation incomplete for: '+', '.join(self.failed))
+SA_NOT_READY_RE=re.compile(r'service ?account.{0,200}(does not exist|not found)',re.IGNORECASE|re.DOTALL)
 class CloudError(ProvisionError):
-    def __init__(self,status,endpoint=''):
-        self.status=status;super().__init__('Google Cloud rejected a provisioning request (HTTP '+str(status)+'). '+endpoint)
+    def __init__(self,status,endpoint='',detail=''):
+        self.status=status;self.detail=detail
+        # Google answers 400 "Service account ... does not exist" for a few seconds after creating it: that is propagation, not a bad request.
+        self.propagating=status==400 and bool(SA_NOT_READY_RE.search(detail))
+        super().__init__('Google Cloud rejected a provisioning request (HTTP '+str(status)+'). '+endpoint+((' Google said: '+detail) if detail else ''))
+
+def error_detail(response):
+    """Short provider message for TA diagnosis. Never the request body, headers or credentials."""
+    try:message=response.json().get('error',{}).get('message','')
+    except Exception:return ''
+    return ' '.join(message.split())[:200] if isinstance(message,str) else ''
 
 class GoogleAPI:
     def __init__(self,session=None):
@@ -45,7 +55,7 @@ class GoogleAPI:
         if r.status_code==404 and missing:return None
         if r.status_code==409 and r.json().get('error',{}).get('status')=='ALREADY_EXISTS':raise AlreadyExists('Resource already exists')
         if r.status_code in (408,409,412,429) or r.status_code>=500:raise Pending('Waiting for Google Cloud operation or quota')
-        if not 200<=r.status_code<300:raise CloudError(r.status_code,method+' '+url)
+        if not 200<=r.status_code<300:raise CloudError(r.status_code,method+' '+url,error_detail(r))
         return r.json() if r.content else {}
 
 

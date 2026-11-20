@@ -67,6 +67,8 @@ def create_app(overrides=None):
         TA_EMAILS=os.environ.get('TA_EMAILS', ''),
         BILLING_EXPORT_TABLE=os.environ.get('BILLING_EXPORT_TABLE', ''),
         BILLING_EXPORT_LOCATION=os.environ.get('BILLING_EXPORT_LOCATION', 'US'),
+        # Web Push (optional): without all three the chat works but sends no notifications.
+        VAPID_PUBLIC_KEY=os.environ.get('VAPID_PUBLIC_KEY', ''), VAPID_PRIVATE_KEY=os.environ.get('VAPID_PRIVATE_KEY', ''), VAPID_SUBJECT=os.environ.get('VAPID_SUBJECT', ''),
         PROJECT_ID='cpe-se-course-2026', REGION='asia-southeast1',
         MAX_CONTENT_LENGTH=16384,
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
@@ -229,6 +231,11 @@ def create_app(overrides=None):
                     if not conn.execute("SELECT email FROM team_members WHERE email=? AND team_id=? AND cloud_status!='removing'",(email,tid)).fetchone():return None
             return {**dict(team),'login_email':email}
         return None
+
+    app.current_team = current_team
+    app.throttle = throttle
+    from chat import register_chat
+    register_chat(app)
 
     def authenticated(fn):
         @wraps(fn)

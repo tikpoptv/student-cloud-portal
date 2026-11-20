@@ -30,7 +30,7 @@ for path in sys.argv[1:]:
 print(json.dumps(sorted(out),ensure_ascii=False))
 `;
 test('every Thai backend error/warning message has an English translation',()=>{
- const files=['repo_review.py','app.py'].map(f=>root+f);
+ const files=['repo_review.py','app.py','chat.py'].map(f=>root+f);
  const run=spawnSync('python3',['-I','-c',script,...files],{encoding:'utf8',timeout:30000});
  assert.equal(run.status,0,run.stderr);
  const found=JSON.parse(run.stdout);

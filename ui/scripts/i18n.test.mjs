@@ -6,7 +6,7 @@ import {t,teamName,isKnownMessage,setLanguage,initialLanguage} from '../src/i18n
 
 test('English covers both screens without changing commands or identifiers',()=>{
  setLanguage('en');
- for(const file of ['ui/src/main.jsx','ui/src/RepoReview.jsx','ui/src/GroupResources.jsx','ui/src/resource-context.js','ui/src/PortalHeader.jsx','ui/src/ErrorPage.jsx','ui/src/AdminDashboard.jsx','ui/src/TeamMembers.jsx','ui/src/ResourceActivation.jsx','ui/src/ActivationProgress.jsx','ui/src/FinalProjectKit.jsx','ui/src/DownloadButton.jsx','ui/src/download.js']){
+ for(const file of ['ui/src/main.jsx','ui/src/RepoReview.jsx','ui/src/GroupResources.jsx','ui/src/resource-context.js','ui/src/PortalHeader.jsx','ui/src/ErrorPage.jsx','ui/src/AdminDashboard.jsx','ui/src/TeamMembers.jsx','ui/src/ResourceActivation.jsx','ui/src/ActivationProgress.jsx','ui/src/FinalProjectKit.jsx','ui/src/DownloadButton.jsx','ui/src/download.js','ui/src/Chat.jsx','ui/src/push.js','ui/src/Inbox.jsx','ui/src/inbox-utils.js']){
   for(const node of nodes(fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8'))){
    if(['Language / ภาษา','ไทย'].includes(node.value))continue; // Language names stay native.
    assert.doesNotMatch(t(node.value),/[ก-๙]/,`${file}: ${node.value}`);

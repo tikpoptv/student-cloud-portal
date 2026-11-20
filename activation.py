@@ -126,7 +126,7 @@ def process_live(app,team_id,api=None):
         if step==6:outputs=worker.outputs()
     except Pending as err:detail=str(err)
     except CloudError as err:
-        detail=str(err);failed=not (err.status==403 and now-stage_started<1800)
+        detail=str(err);failed=not ((err.status==403 or err.propagating) and now-stage_started<1800)
     except ProvisionError as err:detail=str(err);failed=True
     except Exception:
         # Never return request/credential payloads or provider exception strings.

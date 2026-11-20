@@ -187,3 +187,40 @@ If spend runs hot: `ops_pause_team.py --all-ready --apply` is the fastest lever 
 - [ ] Worker and web logs for the last 10 minutes: no tracebacks (`gcloud run services logs read ... --limit=50`).
 - [ ] `ops_backfill_secret_slots.py` dry-run reports "already up to date" for ready teams (proves worker code and IAM agree).
 - [ ] Save the previous revision names for rollback (section 3).
+
+## 13. Chat with TAs and push notifications
+
+The chat (one shared thread per team, TAs reply from the team drawer) works as soon as the code is deployed. **Push notifications are optional** and stay off until the three settings below exist on the **web** service only (the worker does not need them). Notification payloads never contain message text.
+
+Status: keys not yet created, secrets and settings **NOT YET EXECUTED**. Commands below are for an operator to run.
+
+```sh
+# 1. Create the key pair offline (writes private/vapid-private.txt and private/vapid-public.txt, mode 0600; prints the public key only)
+.venv/bin/python ops_generate_vapid.py
+
+# 2. Store both in Secret Manager (the private key is read from the file, never printed)
+gcloud secrets create cpe334-vapid-private --data-file=private/vapid-private.txt --replication-policy=automatic
+gcloud secrets create cpe334-vapid-public  --data-file=private/vapid-public.txt  --replication-policy=automatic
+
+# 3. Let the portal's runtime identity read them
+for s in cpe334-vapid-private cpe334-vapid-public; do
+  gcloud secrets add-iam-policy-binding $s \
+    --member=serviceAccount:cpe334-portal@cpe-se-course-2026.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor
+done
+
+# 4. Add to the WEB service only (use --update-*, never --set-*); VAPID_SUBJECT must be a mailto: or https: contact
+gcloud run services update cpe334-student-cloud --region=asia-southeast1 \
+  --update-secrets=VAPID_PRIVATE_KEY=cpe334-vapid-private:latest,VAPID_PUBLIC_KEY=cpe334-vapid-public:latest \
+  --update-env-vars=VAPID_SUBJECT=mailto:ta-contact@example.org
+```
+
+Behaviour and limits worth knowing:
+
+- Never regenerate the key pair casually: every saved subscription belongs to the old public key and stops working.
+- **iPhone/iPad:** Apple only allows Web Push for a site added to the Home Screen (iOS 16.4+). The page explains this to the person; they must open the app from the Home Screen icon and press the enable button there.
+- Delivery goes through Apple/Google/Mozilla/Microsoft push services. The portal only accepts subscriptions whose endpoint is one of those hosts (it posts to the stored URL, so this blocks server-side request forgery).
+- Sending is best effort and bounded (max 25 devices per message, 8 s). A push failure never fails the chat; expired devices (HTTP 404/410) are removed automatically.
+- Limits: 1,000 characters per message, 1 message per 2 s per team, 200 student messages per team per 24 h, 5 devices per account.
+- Messages live in the portal database (`chat_messages`). TAs can read every thread. Tell students not to send passwords or secrets.
+- Signing out removes that device's subscription so a shared computer stops notifying the previous person.
+- Rollback: the chat tables are additive; older revisions ignore them.

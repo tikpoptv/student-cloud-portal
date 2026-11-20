@@ -243,3 +243,20 @@ def test_dot_segments_rejected(repo):
 def test_redirect_gives_moved_repo_message(status):
     with patch('repo_review.requests.get',return_value=FakeRes(status)):
         with pytest.raises(ValueError,match='ย้ายหรือเปลี่ยนชื่อ'):fetch_snapshot('owner/repo')
+
+
+@pytest.mark.parametrize('value',[
+    'owner/repo','https://github.com/owner/repo','github.com/owner/repo','http://github.com/owner/repo','www.github.com/owner/repo',
+    'https://www.github.com/owner/repo/','https://github.com/owner/repo.git','github.com/owner/repo/tree/main','https://github.com/owner/repo/issues/3',
+    'https://github.com/owner/repo?tab=readme-ov-file','https://github.com/owner/repo#readme','git@github.com:owner/repo.git','  GitHub.com/owner/repo  ',
+])
+def test_pasted_github_links_normalize_to_owner_repo(value):
+    assert normalize_repo(value)=='owner/repo'
+
+
+@pytest.mark.parametrize('value',[
+    'github.com.evil.test/owner/repo','https://gitlab.com/owner/repo','https://evil.test/github.com/owner/repo','github.com/owner','github.com/','github.com//repo',
+    'https://github.com/owner/../repo','github.com/owner/repo\nheader:x','github.com/ow ner/repo','ftp://github.com/owner/repo','git@evil.test:owner/repo.git',
+])
+def test_other_hosts_and_malformed_links_still_rejected(value):
+    with pytest.raises(ValueError):normalize_repo(value)
